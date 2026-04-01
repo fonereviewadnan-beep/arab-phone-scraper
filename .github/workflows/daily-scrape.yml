@@ -1,0 +1,45 @@
+name: 📱 Daily Phone Price Scrape
+
+on:
+  schedule:
+    # يشتغل كل يوم الساعة 6 صباحًا بتوقيت UTC (8 صباحًا القاهرة)
+    - cron: "0 6 * * *"
+  workflow_dispatch: # تشغيل يدوي من GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: 🔍 Run scraper
+        run: python scraper.py
+        env:
+          PYTHONUNBUFFERED: "1"
+
+      - name: 📤 Commit & push updated prices
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add prices_arab.json
+          if git diff --staged --quiet; then
+            echo "ℹ️  No price changes detected."
+          else
+            git commit -m "📱 Update phone prices — $(date -u +%Y-%m-%d)"
+            git push
+          fi
