@@ -64,51 +64,40 @@ MIN_PHONE_PRICE = {
 }
 
 # ─────────────────────────────────────────────────────────────
-# Phones to Track  (add / remove freely)
+# Phones to Track  (Dynamic via WordPress API)
 # ─────────────────────────────────────────────────────────────
-PHONES_TO_TRACK = [
-    "Samsung Galaxy S24 Ultra",
-    "Samsung Galaxy S24",
-    "Samsung Galaxy S23 FE",
-    "Samsung Galaxy A55",
-    "Samsung Galaxy A54",
-    "Samsung Galaxy A35",
-    "Samsung Galaxy A25",
-    "Samsung Galaxy A15",
-    "iPhone 15 Pro Max",
-    "iPhone 15 Pro",
-    "iPhone 15",
-    "iPhone 14",
-    "iPhone 13",
-    "Honor Magic 6 Pro",
-    "Honor Magic 6 Lite",
-    "Honor X9b",
-    "Honor X8b",
-    "Xiaomi 14 Ultra",
-    "Xiaomi Redmi Note 13 Pro",
-    "Xiaomi Redmi Note 13",
-    "Xiaomi Redmi 13C",
-    "OPPO Reno 11 Pro",
-    "OPPO Reno 11",
-    "OPPO A78",
-    "OPPO A58",
-    "Realme 12 Pro Plus",
-    "Realme 12 Pro",
-    "Realme C67",
-    "Huawei Nova 12",
-    "Huawei Pura 70 Pro",
-    "Tecno Spark 20 Pro",
-    "Tecno Camon 30",
-    "Infinix Note 40 Pro",
-    "Infinix Hot 40 Pro",
-    "OnePlus 12",
-    "Google Pixel 8 Pro",
-    "Google Pixel 8",
-    "Motorola Edge 50 Pro",
-    "Nothing Phone 2",
-    "Vivo V30 Pro",
-    "Vivo Y27",
-]
+def get_phones_to_track():
+    """Fetch newest phones from WordPress, fallback to hardcoded list."""
+    wp_site_url = os.environ.get("WP_SITE_URL", "").strip()
+    
+    fallback_list = [
+        "Samsung Galaxy S24 Ultra",
+        "Samsung Galaxy S24",
+        "Samsung Galaxy A55",
+        "Samsung Galaxy A15",
+        "iPhone 15 Pro Max",
+        "iPhone 15",
+        "Xiaomi Redmi Note 13 Pro",
+    ]
+    
+    if not wp_site_url:
+        return fallback_list
+        
+    try:
+        # Fetch directly from the curated WordPress plugin endpoint
+        api_endpoint = f"{wp_site_url}/wp-json/mps/v1/phones-to-scrape"
+        r = requests.get(api_endpoint, timeout=15)
+        if r.status_code == 200:
+            phones = r.json()
+            if isinstance(phones, list) and len(phones) > 0:
+                log.info("Successfully fetched %d curated phones from WordPress.", len(phones))
+                return phones
+            else:
+                log.warning("Curated phone list was empty or invalid. Falling back.")
+    except Exception as e:
+        log.error("Failed to fetch from custom WordPress API: %s", e)
+        
+    return fallback_list
 
 # ─────────────────────────────────────────────────────────────
 # Countries & Sources
@@ -518,18 +507,22 @@ def merge(old_list, new_list):
 
 # ─────────────────────────────────────────────────────────────
 def main():
+    phones_to_track = get_phones_to_track()
+    
     log.info("═" * 55)
     log.info("🚀  Arab Phone Prices Scraper")
-    log.info("📱  Phones : %d", len(PHONES_TO_TRACK))
+    log.info("📱  Phones : %d", len(phones_to_track))
     log.info("🌍  Countries : %d", len(COUNTRIES))
+    if os.environ.get("WP_SITE_URL"):
+        log.info("🌐  WP Source : %s", os.environ.get("WP_SITE_URL"))
     log.info("═" * 55)
 
     session = _session()
     old = load_existing()
     results = []
 
-    for i, phone in enumerate(PHONES_TO_TRACK, 1):
-        log.info("\n─── [%d/%d] %s ───", i, len(PHONES_TO_TRACK), phone)
+    for i, phone in enumerate(phones_to_track, 1):
+        log.info("\n─── [%d/%d] %s ───", i, len(phones_to_track), phone)
         row = scrape_phone(session, phone)
         results.append(row)
         # rotate UA every 5 phones
